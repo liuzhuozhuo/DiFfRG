@@ -12,5 +12,6 @@ setup_test(wave_speed_tests.cc)
 setup_test(kt_batch_equivalence.cc)
 setup_test(kt_boundary_flux.cc)
 setup_test(kt_adaptivity.cc)
+setup_test(invariant_coordinates_tests.cc)
 
 add_subdirectory(regression)
