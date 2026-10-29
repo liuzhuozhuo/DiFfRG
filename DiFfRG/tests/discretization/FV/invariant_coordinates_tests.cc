@@ -357,6 +357,15 @@ TEST_CASE("PolarInvariants: origin fit from a solution sample and curvature blen
 
   map_cb.update(1., sample, {{2u, 1u}});
   CHECK(callbacks == 1);
+
+  // the cell-list overload gives the same fit
+  std::vector<FV::PolarOriginFit::Cell> cells;
+  for (const auto &e : sample)
+    cells.push_back({e.point[0], e.point[1], e.values[2], e.point[0] * e.values[1]});
+  const FV::PolarInvariants map_cells(uniform_axis(0., 0.02, 20), uniform_axis(0., 1., 32), p);
+  map_cells.update(1., cells);
+  CHECK(map_cells.origin_fit().c0 == map.origin_fit().c0);
+  CHECK(map_cells.origin_fit().d == map.origin_fit().d);
   CHECK(map_cb.origin_fit().c0 == Catch::Approx(exact.c0 + 1.).epsilon(1e-8));
 }
 

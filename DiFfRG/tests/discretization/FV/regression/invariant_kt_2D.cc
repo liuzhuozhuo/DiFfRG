@@ -56,8 +56,9 @@ namespace
     using type = ComponentDescriptor<FEFunctionDescriptor<Scalar<"u1">, Scalar<"u2">>>;
   };
 
-  /// The 0D O(N1) x O(N2) LPA on a coordinate map; with `batched` through potential_flux_batch.
-  template <typename Map, bool batched, FixedString... fields>
+  /// The 0D O(N1) x O(N2) LPA on a coordinate map. `batched`: 0 per point, 1 through potential_flux_batch, 2 also
+  /// through potential_curvature_flux_batch.
+  template <typename Map, int batched, FixedString... fields>
   class ONxOM : public def::GradientPotential<ONxOM<Map, batched, fields...>, typename ComponentsOf<Map::dim>::type,
                                               Map, fields...>,
                 public def::fRG,
@@ -98,10 +99,23 @@ namespace
     template <typename NT, typename Batch>
     void potential_flux_batch(std::vector<NT> &J, const std::vector<FV::InvariantState<dim, NT>> &states,
                               const Batch & /*batch*/) const
-      requires batched
+      requires(batched > 0)
     {
       for (size_t i = 0; i < states.size(); ++i)
         J[i] = F(states[i]);
+    }
+
+    template <typename NT, typename Batch>
+    void potential_curvature_flux_batch(std::vector<NT> &D, const std::vector<FV::InvariantState<dim, NT>> &states,
+                                        const Batch & /*batch*/) const
+      requires(batched > 1)
+    {
+      for (size_t i = 0; i < states.size(); ++i) {
+        auto s0 = states[i];
+        for (auto &row : s0.U2)
+          row.fill(NT(0.));
+        D[i] = F(states[i]) - F(s0);
+      }
     }
 
   private:
@@ -121,9 +135,9 @@ namespace
     double delta;
   };
 
-  using Model1D = ONxOM<FV::CartesianInvariants<1>, false, "u">;
-  template <bool batched> using ModelPolar = ONxOM<FV::PolarInvariants, batched, "u1", "u2">;
-  using ModelCartesian = ONxOM<FV::CartesianInvariants<2>, false, "u1", "u2">;
+  using Model1D = ONxOM<FV::CartesianInvariants<1>, 0, "u">;
+  template <int batched> using ModelPolar = ONxOM<FV::PolarInvariants, batched, "u1", "u2">;
+  using ModelCartesian = ONxOM<FV::CartesianInvariants<2>, 0, "u1", "u2">;
 
   ConfigTree make_json(const std::string &x_grid, const std::string &y_grid, const std::string &polar_form = "w")
   {
@@ -243,7 +257,7 @@ TEST_CASE("Polar O(2)xO(2) from an O(4)-symmetric start follows the 1D O(4) flow
   for (const std::string form : {"w", "W"}) {
     CAPTURE(form);
     const auto json = make_json(r_grid, s_grid, form);
-    const auto polar = run<ModelPolar<false>, 2>(json, ModelPolar<false>(json), "invariant_kt_2D_polar");
+    const auto polar = run<ModelPolar<0>, 2>(json, ModelPolar<0>(json), "invariant_kt_2D_polar");
     double dv = 0., w = 0.;
     for (const auto &[x, values] : polar) {
       dv = std::max(dv, std::abs(values[0] - interpolate_1D(ref, x[0])));
@@ -251,16 +265,16 @@ TEST_CASE("Polar O(2)xO(2) from an O(4)-symmetric start follows the 1D O(4) flow
     }
     std::clog << std::setprecision(6) << "[invariant_kt_2D] polar (" << form << ") vs 1D: max |v - u| = " << dv
               << ", max |w| = " << w << '\n';
-    // to the time-stepping tolerance; W = r w is O(1) where w is O(1 / r)
+    // both to the time-stepping tolerance (implicit rel_tol 1e-9, |v| = O(1)): w is zero only up to it
     CHECK(dv < 1e-7);
-    CHECK(w < (form == "w" ? 1e-10 : 1e-9));
+    CHECK(w < 1e-8);
   }
 }
 
 namespace
 {
   /// Residual and jacobian of one polar KT assembly at a perturbed state, at RG time t = 2.
-  template <bool batched> struct PolarAssembly {
+  template <int batched> struct PolarAssembly {
     using Model = ModelPolar<batched>;
     using Discretization = FV::Discretization<typename Model::Components, RectangularMeshSerial<2>, double>;
     using Assembler =
@@ -305,10 +319,11 @@ namespace
   };
 } // namespace
 
-TEST_CASE("Polar potential_flux_batch assembles as the per-point path", "[2d][FV][KT][invariants]")
+TEMPLATE_TEST_CASE_SIG("Polar potential_flux_batch assembles as the per-point path", "[2d][FV][KT][invariants]",
+                       ((int mode), mode), 1, 2)
 {
-  PolarAssembly<true> batched;
-  PolarAssembly<false> per_point;
+  PolarAssembly<mode> batched;
+  PolarAssembly<0> per_point;
   const auto r_b = batched.residual(), r_p = per_point.residual();
   auto dr = r_b;
   dr -= r_p;
@@ -350,7 +365,7 @@ TEST_CASE("Cartesian and polar maps agree on an O(2)xO(2) flow", "[2d][FV][KT][i
   {
     const double delta = 0.1;
     const auto cart = run<ModelCartesian, 2>(json_c, ModelCartesian(json_c, delta), "invariant_kt_2D_cart_b");
-    const auto polar = run<ModelPolar<false>, 2>(json_p, ModelPolar<false>(json_p, delta), "invariant_kt_2D_polar_b");
+    const auto polar = run<ModelPolar<0>, 2>(json_p, ModelPolar<0>(json_p, delta), "invariant_kt_2D_polar_b");
     double d = 0.;
     for (const auto &[x, values] : cart) {
       const double r = x[0] + x[1], s = x[1] / r;

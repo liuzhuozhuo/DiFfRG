@@ -172,14 +172,14 @@ namespace DiFfRG
       {
         const double s = x[1], re = r_e(x[0]);
         auto state = values<NT>(x, u);
-        const NT &vr = du[0][0], &vs = du[0][1];
-        // Y and the s-curvature term ws / re of the w form (W form: W_s / re^2)
-        const NT Y = prm.form == PolarForm::w ? NT(0.5 * (du[1][0] + (vs - u[1]) / re))
-                                              : NT(0.5 * (du[1][0] + vs) / re - u[1] / (re * re));
-        const NT S = prm.form == PolarForm::w ? NT(du[1][1] / re) : NT(du[1][1] / (re * re));
-        state.U2[0][0] = vr - 2. * s * Y + s * s * S;
-        state.U2[0][1] = vr + (1. - 2. * s) * Y - s * (1. - s) * S;
-        state.U2[1][1] = vr + 2. * (1. - s) * Y + (1. - s) * (1. - s) * S;
+        const NT &vr = du[0][0], &vs = du[0][1], &ur = du[1][0], &us = du[1][1];
+        // Y, and the divisor of the s-curvature term: w_s / r_e (w form), W_s / r_e^2 (W form)
+        const NT Y =
+            prm.form == PolarForm::w ? NT(0.5 * (ur + (vs - u[1]) / re)) : NT(0.5 * (ur + vs) / re - u[1] / (re * re));
+        const double d = prm.form == PolarForm::w ? re : re * re;
+        state.U2[0][0] = vr - 2. * s * Y + s * s * us / d;
+        state.U2[0][1] = vr + (1. - 2. * s) * Y - s * (1. - s) * us / d;
+        state.U2[1][1] = vr + 2. * (1. - s) * Y + (1. - s) * (1. - s) * us / d;
 
         if (origin_blend && origin_active && fit.valid) {
           const double lambda = PolarOriginFit::blend_weight(x[0], prm.origin_fit_r);
@@ -308,7 +308,6 @@ namespace DiFfRG
                   const std::array<unsigned int, dim> &fields) const
       {
         if (!(prm.origin_fit_r > 0.)) return;
-        origin_active = t >= prm.origin_fit_t_min;
         std::vector<PolarOriginFit::Cell> cells;
         cells.reserve(sample.size());
         for (const auto &e : sample) {
@@ -317,6 +316,17 @@ namespace DiFfRG
           const double v = double(e.values[fields[0]]), u1 = double(e.values[fields[1]]);
           cells.push_back({r, s, v, prm.form == PolarForm::w ? r * u1 : u1});
         }
+        update(t, cells);
+      }
+
+      /**
+       * @brief Refit the origin expansion from @p cells ($r, s, v, W$ per cell centre), e.g. for a model that
+       * drives its own time stepping and refreshes the fit itself. Same rules as the SolutionSample overload.
+       */
+      void update(const double t, const std::vector<PolarOriginFit::Cell> &cells) const
+      {
+        if (!(prm.origin_fit_r > 0.)) return;
+        origin_active = t >= prm.origin_fit_t_min;
         auto f = PolarOriginFit::fit(cells, prm.origin_fit_rows);
         if (f.valid && post_fit) post_fit(f, cells);
         fit = f;

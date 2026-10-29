@@ -70,6 +70,11 @@
  * |------|---------|-|
  * | `bool potential_curvature_active() const` | true | whether diffusion_flux carries the curvature part |
  * | `template <typename NT, typename Batch> void potential_flux_batch(std::vector<NT> &F, const std::vector<FV::InvariantState<dim, NT>> &states, const Batch &batch) const` | per point | \f$\mathcal F\f$ at all states at once, e.g. one `map_points()` call; `states[i]` belongs to `batch.x(i)` |
+ * | `template <typename NT, typename Solution> NT potential_curvature_flux(const FV::InvariantState<dim, NT> &state, const Point<dim> &x, const Solution &sol) const` | difference of two potential_flux | the curvature part \f$\mathcal F(U_a, U_{ab}) - \mathcal F(U_a, 0)\f$ |
+ * | `template <typename NT, typename Batch> void potential_curvature_flux_batch(std::vector<NT> &D, const std::vector<FV::InvariantState<dim, NT>> &states, const Batch &batch) const` | difference of two potential_flux_batch | the curvature part at all states at once |
+ *
+ * The curvature hooks let a model take the difference inside its integrand (less cancellation) or treat points
+ * where only the full flux is singular separately.
  *
  * A model with further FE functions, its own wave_speed_blocks or its own needs_restart shadows the hook and calls
  * the one of GradientPotential (`GradientPotential::flux(F, x, sol)`, `update_coordinates(t, sample)`, ...) from it.
@@ -235,8 +240,13 @@ namespace DiFfRG
         const auto g = gradient_field_gradients<NT>(get<"fe_derivatives">(sol));
         FV::InvariantFieldGradients<n_invariants, NT> D{};
         if (asImp().potential_curvature_active()) {
-          const NT J = asImp().potential_flux(m_coordinates.template state<NT>(x, f, g), x, sol) -
-                       asImp().potential_flux(m_coordinates.template values<NT>(x, f), x, sol);
+          const auto state = m_coordinates.template state<NT>(x, f, g);
+          NT J;
+          if constexpr (requires(const Model &m) { m.potential_curvature_flux(state, x, sol); })
+            J = asImp().potential_curvature_flux(state, x, sol);
+          else
+            J = asImp().potential_flux(state, x, sol) -
+                asImp().potential_flux(m_coordinates.template values<NT>(x, f), x, sol);
           for (int i = 0; i < n_invariants; ++i)
             D[i][i] = m_coordinates.flux_weight(x, i) * J;
         }
@@ -302,18 +312,23 @@ namespace DiFfRG
               };
               std::vector<NT> J(n, NT(0.));
               if (asImp().potential_curvature_active()) {
-                std::vector<FV::InvariantState<n_invariants, NT>> states(n), states0(n);
+                std::vector<FV::InvariantState<n_invariants, NT>> states(n);
                 tbb::parallel_for(size_t(0), n, [&](const size_t i) {
-                  const auto x = batch.x(i);
-                  const auto f = fields_at(i);
-                  states[i] = m_coordinates.template state<NT>(x, f, gradients_at(i));
-                  states0[i] = m_coordinates.template values<NT>(x, f);
+                  states[i] = m_coordinates.template state<NT>(batch.x(i), fields_at(i), gradients_at(i));
                 });
-                std::vector<NT> J0(n, NT(0.));
-                asImp().potential_flux_batch(J, states, batch);
-                asImp().potential_flux_batch(J0, states0, batch);
-                for (size_t i = 0; i < n; ++i)
-                  J[i] = J[i] - J0[i];
+                if constexpr (requires(const Model &m) { m.potential_curvature_flux_batch(J, states, batch); })
+                  asImp().potential_curvature_flux_batch(J, states, batch);
+                else {
+                  auto states0 = states;
+                  for (auto &st : states0)
+                    for (auto &row : st.U2)
+                      row.fill(NT(0.));
+                  std::vector<NT> J0(n, NT(0.));
+                  asImp().potential_flux_batch(J, states, batch);
+                  asImp().potential_flux_batch(J0, states0, batch);
+                  for (size_t i = 0; i < n; ++i)
+                    J[i] = J[i] - J0[i];
+                }
               }
               tbb::parallel_for(size_t(0), n, [&](const size_t i) {
                 const auto x = batch.x(i);
