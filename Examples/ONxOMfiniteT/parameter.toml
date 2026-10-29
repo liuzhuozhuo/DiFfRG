@@ -1,0 +1,47 @@
+[ONxOM]
+map = "polar"   # polar, cartesian, or 1D (the O(N1 + N2) reference), see ONxOM.cc
+
+[physical]
+Lambda = 1
+N1 = 2
+N2 = 2
+lambda2 = -0.5
+lambda4 = 50
+lambda6 = 0
+delta = 0.0     # U_Lambda += delta rho2: explicit O(N1 + N2) breaking
+T = 0.002
+
+[integration]
+x_order = 32
+x_extent_tolerance = 1e-4
+jacobian_quadrature_factor = 1.0
+
+[discretization.grid]
+# polar: x = r = rho1 + rho2, y = s = rho2 / r in [0, 1]; cartesian: x = rho1, y = rho2 (set y_grid = x_grid);
+# 1D: x = rho
+x_grid = "0:5e-4:1.5e-2"
+y_grid = "0:0.0625:1"
+refine = 0
+
+[discretization.invariant_coordinates]
+# see DiFfRG/discretization/FV/coordinates/invariant_coordinates.hh
+polar_form = "w"
+damping = 20
+
+[timestepping]
+final_time = 5
+output_dt = 0.1
+
+[timestepping.implicit]
+dt = 1e-3
+minimal_dt = 1e-8
+maximal_dt = 0.1
+abs_tol = 1e-13
+rel_tol = 1e-7
+
+[output]
+vtk = true
+hdf5 = true
+verbosity = 1
+folder = "./"
+name = "output"

@@ -142,7 +142,8 @@
   on a grid axis. Included: the damping of the non-gradient (curl / compatibility) mode of the fields, per-axis
   cell widths (`FV::AxisWidths`), relative per-dof tolerances, U_abc for readouts, and on the polar grid a fit of
   the regular expansion at the origin (`FV::PolarOriginFit`) for the curvatures of the first cells. Parameters
-  under `/discretization/invariant_coordinates/`; see `documentation/getting_started/models.md`.
+  under `/discretization/invariant_coordinates/`; see `documentation/getting_started/models.md` and the example
+  `Examples/ONxOMfiniteT` (the O(N1) x O(N2) model at finite T, polar and Cartesian, against the 1D O(N1 + N2) flow).
 - Flow snapshots and restarts. `/timestepping/snapshots/k` (or `/t`) makes a run write its complete
   state, including the full parameter tree, at those RG scales to `<run>_snapshot_<nnn>.h5`, and
   `--restart <file>` makes a later run continue from such a snapshot instead of starting at Λ. A
