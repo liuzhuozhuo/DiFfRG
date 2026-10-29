@@ -94,6 +94,7 @@
  * | Boundary numerical flux | def::FlowBoundaries (CG, DG, LDG) |
  * | Boundary ghost cells (KT) | def::FVDefaultBoundaries and the other mixins in fv_boundaries.hh |
  * | Affine constraints | def::ConstrainOrigin{Boundary,Support}PointToZero<"u", Model>, def::NoAffineConstraints |
+ * | Potential of several invariants (KT) | def::GradientPotential, in place of AbstractModel; see gradient_potential.hh |
  *
  * ### LDG levels
  * The LDG assembler constructs up to three auxiliary levels \f$L_1, L_2, L_3\f$ from \f$L_0 = u\f$:

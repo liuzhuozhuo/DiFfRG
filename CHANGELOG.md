@@ -132,6 +132,17 @@
 
 ### Added
 
+- KT models of a potential of several invariants, U(ρ_1, ..., ρ_N), in gradient form
+  (`DiFfRG/model/gradient_potential.hh`, `DiFfRG/discretization/FV/coordinates/`). A model derives from
+  `def::GradientPotential<Model, Components, Map, "u1", "u2", ...>` instead of `def::AbstractModel` and writes the
+  flow ∂_t U = -F(ρ, U_a, U_ab) once, as `potential_flux` (optionally for all points at once,
+  `potential_flux_batch`); each FE function holds one component of the gradient of U in the grid coordinates and
+  carries F along its own axis. A coordinate map chooses the grid: `FV::CartesianInvariants<N>` (grid = invariants)
+  or `FV::PolarInvariants` (r = ρ_1 + ρ_2, s = ρ_2 / r), which puts the radial diffusion near the symmetric point
+  on a grid axis. Included: the damping of the non-gradient (curl / compatibility) mode of the fields, per-axis
+  cell widths (`FV::AxisWidths`), relative per-dof tolerances, U_abc for readouts, and on the polar grid a fit of
+  the regular expansion at the origin (`FV::PolarOriginFit`) for the curvatures of the first cells. Parameters
+  under `/discretization/invariant_coordinates/`; see `documentation/getting_started/models.md`.
 - Flow snapshots and restarts. `/timestepping/snapshots/k` (or `/t`) makes a run write its complete
   state, including the full parameter tree, at those RG scales to `<run>_snapshot_<nnn>.h5`, and
   `--restart <file>` makes a later run continue from such a snapshot instead of starting at Λ. A

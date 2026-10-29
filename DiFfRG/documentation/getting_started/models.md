@@ -276,6 +276,51 @@ void apply_boundary_affine_constraints(Constraints &constraints, const Context &
 Affine constraints are for pinning a few named dofs. Boundary conditions that are naturally expressed through
 numerical fluxes or finite-volume ghost cells belong there instead.
 
+## Potentials of several invariants (KT)
+
+A potential $U(\rho_1, \dots, \rho_N)$ of several invariants, e.g. of an $O(N_1)\times O(N_2)$ model, flows as
+$\partial_t U = -\mathcal F(\rho, U_a, U_{ab})$. Kurganov–Tadmor has no mixed second derivative in the source, so the
+gradient of $U$ is evolved instead: one FE function $u_i = \partial_{x^i} U$ per grid axis, each carrying
+$\mathcal F$ along its own axis, $\partial_t u_i + \partial_i \mathcal F = 0$. This holds in any grid coordinates
+$x^i$, so the grid can be chosen to fit the problem. A coordinate map converts the fields to $\rho_a, U_a, U_{ab}$:
+
+| Map | grid | fields |
+|-----|------|--------|
+| `FV::CartesianInvariants<N>` | $\rho_1, \dots, \rho_N$ | $U_a$ |
+| `FV::PolarInvariants` | $r = \rho_1 + \rho_2$, $s = \rho_2 / r$ | $v = \partial_r U$, $w = U_2 - U_1$ (or $W = \partial_s U$) |
+
+Near an $O(N_1 + N_2)$-symmetric point the curvature part of the flow is a diffusion along $\rho_1 + \rho_2$; the
+polar grid puts that direction on a grid axis, where the Cartesian grid leaves an odd–even mode across it.
+
+The model derives from `def::GradientPotential` instead of `def::AbstractModel` and writes $\mathcal F$ once:
+
+```cpp
+using Components = ComponentDescriptor<FEFunctionDescriptor<Scalar<"v">, Scalar<"w">>>;
+
+class MyModel : public def::GradientPotential<MyModel, Components, FV::PolarInvariants, "v", "w">,
+                public def::fRG, public def::FVDefaultBoundaries<MyModel>, public def::AD<MyModel>
+{
+public:
+  MyModel(const ConfigTree &json) : GradientPotential(json), def::fRG(json) {}
+
+  template <typename Vector> void initial_condition(const Point<2> &x, Vector &values) const
+  {
+    gradient_initial_condition(x, values, [](double rho) { return -0.2 + rho; }); // U'_Lambda(rho_1 + rho_2)
+  }
+
+  // dt U = -F at state.rho with U_a = state.U1[a], U_ab = state.U2[a][b]
+  template <typename NT, typename Solution>
+  NT potential_flux(const FV::InvariantState<2, NT> &state, const Point<2> &x, const Solution &sol) const;
+};
+```
+
+`def::GradientPotential` provides `flux` (the curvature-free part), `diffusion_flux` (the curvature part, and a damping
+of the non-gradient mode of the fields), `wave_speed_blocks`, `abs_tolerances` and an `evaluate_batch` that calls a
+model's `potential_flux_batch` for all points at once if it has one. In `extract()` and the readouts,
+`potential_state()` and `potential_third()` give $U_a, U_{ab}, U_{abc}$ at a point. The numerical parameters are under
+`/discretization/invariant_coordinates/`; the details are in the documentation of `invariant_coordinates.hh`,
+`polar_invariants.hh` and `gradient_potential.hh`.
+
 ## Further reading
 
 - The numerics behind the assemblers: the [deal.II tutorials](https://www.dealii.org/developer/doxygen/deal.II/Tutorial.html)
