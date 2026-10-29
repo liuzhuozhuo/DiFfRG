@@ -268,6 +268,9 @@
 
 ### Fixed
 
+- KT face normals are the exact axis vectors. They were (face centre - cell centre) / norm, whose tangential
+  entries carry round-off unless the cell widths are binary fractions; through them a large flux component along
+  a face leaked into the numerical flux of the face.
 - The EoM potential reconstruction keeps its cells, faces and per-thread FE scratch with the cached system instead
   of rebuilding them for every solve: 4 ms per solve on 32 threads for a 61-cell mesh before, 0.1 ms now.
 - The timesteppers report the duration of every linear solve, also of a direct solver, which reports no iteration

@@ -212,6 +212,21 @@ namespace DiFfRG
         }
 
         /**
+         * @brief The outward unit normal of face @p face_no of an axis-aligned cell: \f$\pm e_d\f$, \f$d\f$ =
+         * `face_no / 2`, minus for the lower face (deal.II face numbering).
+         *
+         * Exact, unlike (face centre - cell centre) / norm, whose tangential entries carry round-off of the cell
+         * centres (~1e-17 relative, unless the widths are binary fractions). A large flux component along the face
+         * leaks through such an entry into the face's numerical flux.
+         */
+        template <int dim> dealii::Tensor<1, dim> axis_face_normal(const unsigned int face_no)
+        {
+          dealii::Tensor<1, dim> normal;
+          normal[face_no / 2] = face_no % 2 == 0 ? -1. : 1.;
+          return normal;
+        }
+
+        /**
          * @brief The KT numerical flux of a face with unit normal @p normal pointing from the u^- to the u^+ side:
          * \f$H_d = \tfrac12 (F^+_d + F^-_d) - \tfrac12 a_d n_d (u^+ - u^-)\f$ per component, so that
          * \f$H\cdot n = \tfrac12 (F^+ + F^-)\cdot n - \tfrac12 a_n (u^+ - u^-)\f$ with the speed
@@ -1134,10 +1149,13 @@ namespace DiFfRG
 
         static Tensor<1, dim> face_normal_from_cell(const Iterator &cell, const unsigned int face_no)
         {
+          // KT meshes are rectangular: the normal is the exact axis vector (see internal::axis_face_normal).
           const auto face_offset = cell->face(face_no)->center() - cell->center();
           const auto norm = face_offset.norm();
           AssertThrow(norm > 0., ExcMessage("Degenerate FV face normal."));
-          return face_offset / norm;
+          const auto normal = internal::axis_face_normal<dim>(face_no);
+          Assert((face_offset / norm - normal).norm() < 1e-12, ExcMessage("FV face is not axis-aligned."));
+          return normal;
         }
 
         static double face_jxw(const Iterator &cell, const unsigned int face_no)

@@ -1186,6 +1186,32 @@ TEST_CASE("KT 2D topology cache stores four face neighbours for an interior cell
   }
 }
 
+TEST_CASE("KT face normals are exact axis vectors on non-binary widths", "[FV][KT][2d]")
+{
+  using Model = DiFfRG::Testing::ModelBurgers2DKT;
+  using Discretization = DiFfRG::FV::Discretization<Model, DiFfRG::RectangularMeshSerial<2>, NumberType>;
+
+  ensure_logger();
+
+  // widths 0.1 and 0.3 are not binary fractions: (face centre - cell centre) / norm has round-off off the axis
+  auto json = make_kt_boundary_json();
+  json.set_string("/discretization/grid/x_grid", "0.3:0.1:1.3");
+  json.set_string("/discretization/grid/y_grid", "0.1:0.3:2.2");
+  DiFfRG::RectangularMeshSerial<2> mesh{DiFfRG::Config::ConfigurationMesh<2>(json)};
+  Discretization discretization(mesh, json);
+
+  for (const auto &cell : discretization.get_dof_handler().active_cell_iterators())
+    for (const auto face_no : cell->face_indices()) {
+      CAPTURE(face_no);
+      const auto normal = KT::internal::axis_face_normal<2>(face_no);
+      const auto offset = cell->face(face_no)->center() - cell->center();
+      CHECK(normal[face_no / 2] * offset[face_no / 2] > 0.);
+      CHECK(normal[1 - face_no / 2] == 0.);
+      CHECK(std::abs(normal[face_no / 2]) == 1.);
+      CHECK((offset / offset.norm() - normal).norm() < 1e-12);
+    }
+}
+
 TEST_CASE("KT 2D boundary stencil cache stores two interior cells behind boundary faces", "[FV][KT][cache][2d]")
 {
   using Model = DiFfRG::Testing::ModelBurgers2DKT;
