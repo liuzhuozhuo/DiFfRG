@@ -145,6 +145,7 @@ TEST_CASE("CartesianInvariants: chain rule and curl damping", "[FV][coordinates]
   CHECK(D[1][0] == Catch::Approx(20. * 0.1 * 0.1));
 
   CHECK(map.flux_weight(x, 0) == 1.);
+  CHECK(map.potential_gradient(x, u) == u);
   const auto init = map.initial_fields(x, [](double rho) { return 2. * rho; });
   CHECK(init[0] == Catch::Approx(2. * (x[0] + x[1])));
   CHECK(init[1] == Catch::Approx(2. * (x[0] + x[1])));
@@ -192,6 +193,10 @@ TEST_CASE("PolarInvariants: chain rule in both forms", "[FV][coordinates]")
             CHECK(U3[a][b][c] == Catch::Approx(U3e[a][b][c]).epsilon(1e-4).margin(1e-5));
 
       CHECK(std::abs(map.compatibility<double>(x, u, du)) < 1e-7);
+      // (d_r U, d_s U) = (v, W)
+      const auto g = map.potential_gradient(x, u);
+      CHECK(g[0] == u[0]);
+      CHECK(g[1] == Catch::Approx(fields_W(x[0], s)[1]).epsilon(1e-12));
       CHECK(map.flux_weight(x, 0) == 1.);
       CHECK(map.flux_weight(x, 1) == Catch::Approx(form == FV::PolarForm::w ? 1. / 0.3 : 1.));
     }

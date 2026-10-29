@@ -57,6 +57,8 @@
  * | wave_speed_blocks | one block per gradient field, all other FE functions in one further block |
  * | abs_tolerances | \f$\max(\mathrm{atol}, \epsilon\cdot\f$`tolerance_scale`\f$)\f$ per gradient field, \f$\epsilon\f$ = `field_rel_tol` (0: uniform atol) |
  * | needs_restart | only for maps with `update` (PolarInvariants): refreshes the map's numerical state, never restarts |
+ * | raw_potential_gradient | \f$\partial_{x^i} U\f$ in the grid coordinates (`potential_gradient` of the map), for the reconstructed potential |
+ * | EoM | the same: the EoM point is the minimum of \f$U\f$. A model with explicit symmetry breaking shadows it |
  *
  * The split puts the curvature-free part of \f$\mathcal F\f$ into the hyperbolic flux, with its wave speed, and the
  * rest into the diffusion flux; with `potential_curvature_active()` false (e.g. far in the UV, where the curvature
@@ -342,6 +344,20 @@ namespace DiFfRG
               });
             }
         }
+      }
+
+      /// \f$\partial_{x^i} U\f$ in the grid coordinates, from which DiFfRG reconstructs the scalar potential.
+      template <int dim, typename Vector>
+      std::array<double, dim> raw_potential_gradient(const Point<dim> &x, const Vector &u) const
+      {
+        static_assert(dim == n_invariants, "GradientPotential: the mesh dimension must be the number of invariants.");
+        return m_coordinates.potential_gradient(x, gradient_fields<double>(u));
+      }
+
+      /// The EoM point is the minimum of \f$U\f$: \f$\partial_{x^i} U = 0\f$.
+      template <int dim, typename Vector> std::array<double, dim> EoM(const Point<dim> &x, const Vector &u) const
+      {
+        return raw_potential_gradient(x, u);
       }
 
       /// One wave-speed block per gradient field; all other FE functions share one further block.

@@ -56,6 +56,7 @@
  * |--------|-----------------|
  * | `static constexpr int dim` | number of invariants = mesh dimension |
  * | `invariants(x)` | \f$\rho_a\f$ at grid point \f$x\f$ |
+ * | `potential_gradient(x, u)` | \f$\partial_{x^i} U\f$, the gradient of \f$U\f$ in the grid coordinates |
  * | `values(x, u)` | InvariantState with \f$\rho_a, U_a\f$ (\f$U_{ab} = 0\f$) |
  * | `state(x, u, du)` | InvariantState with \f$\rho_a, U_a, U_{ab}\f$ |
  * | `third(x, u, du, d2u)` | \f$U_{abc}\f$ |
@@ -119,6 +120,7 @@ namespace DiFfRG
                  const InvariantFieldGradients<Map::dim, double> &du, const InvariantFieldHessians<Map::dim> &d2u,
                  InvariantFieldGradients<Map::dim, double> &D) {
           { map.invariants(x) } -> std::convertible_to<std::array<double, Map::dim>>;
+          { map.potential_gradient(x, u) } -> std::convertible_to<std::array<double, Map::dim>>;
           { map.template values<double>(x, u) } -> std::convertible_to<InvariantState<Map::dim, double>>;
           { map.template state<double>(x, u, du) } -> std::convertible_to<InvariantState<Map::dim, double>>;
           { map.third(x, u, du, d2u) } -> std::convertible_to<InvariantThirdDerivatives<Map::dim>>;
@@ -166,6 +168,12 @@ namespace DiFfRG
         for (int a = 0; a < dim; ++a)
           rho[a] = x[a];
         return rho;
+      }
+
+      /// \f$\partial_a U = u_a\f$.
+      std::array<double, dim> potential_gradient(const Point<dim> & /*x*/, const InvariantFields<dim, double> &u) const
+      {
+        return u;
       }
 
       /// \f$\rho_a\f$, \f$U_a = u_a\f$.

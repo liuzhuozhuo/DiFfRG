@@ -148,6 +148,12 @@ namespace DiFfRG
         return {{r * (1. - s), r * s}};
       }
 
+      /// \f$(\partial_r U, \partial_s U) = (v, W)\f$, \f$W = rw\f$ in the w form.
+      std::array<double, dim> potential_gradient(const Point<dim> &x, const InvariantFields<dim, double> &u) const
+      {
+        return {{u[0], prm.form == PolarForm::w ? std::max(x[0], 0.) * u[1] : u[1]}};
+      }
+
       /// \f$\rho_a\f$, \f$U_1 = v - sw\f$, \f$U_2 = v + (1 - s)w\f$.
       template <typename NT>
       InvariantState<dim, NT> values(const Point<dim> &x, const InvariantFields<dim, NT> &u) const
