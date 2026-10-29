@@ -144,7 +144,7 @@ namespace DiFfRG
         double e2 = 0.;
         for (const auto &c : cells) {
           if (!(c.r > 0.) || !(c.r <= R)) continue;
-          e2 += std::pow(v(f, c.r, c.s) - c.v, 2) + std::pow((W(f, c.r, c.s) - c.W) / c.r, 2);
+          e2 += std::pow(v(f, c.r, c.s) - c.v, 2) + std::pow(W(f, c.r, c.s) / c.r - c.W / c.r, 2);
         }
         f.cells = n;
         f.rms = std::sqrt(e2 / (2. * n));
